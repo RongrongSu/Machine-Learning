@@ -1,0 +1,533 @@
+---
+title: "Online news popularity analysis"
+output: word_document
+---
+
+```{r warning=FALSE}
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+library(tidyverse)
+library(plyr)
+```
+
+
+```{r}
+news_df<-read.csv('/Users/xhkj/Downloads/OnlineNewsPopularity/OnlineNewsPopularity.csv')
+str(news_df)
+```
+
+```{r}
+news_df$news_channel<-NA
+news_df$news_channel[news_df$data_channel_is_lifestyle==1] <- "Lifestyle"
+news_df$news_channel[news_df$data_channel_is_entertainment==1] <- "Entertainment"
+news_df$news_channel[news_df$data_channel_is_bus==1] <- "Business"
+news_df$news_channel[news_df$data_channel_is_socmed==1] <- "Social Media"
+news_df$news_channel[news_df$data_channel_is_tech==1] <- "Technology"
+news_df$news_channel[news_df$data_channel_is_world==1] <- "World"
+
+# Create the News Channel variable 
+news_df$news_channel <-  factor(news_df$news_channel, 
+                                       levels = c("Business", 
+                                                  "Entertainment", 
+                                                  "Lifestyle", 
+                                                  "Technology", 
+                                                  "World",
+                                                  "Social Media"))
+```
+
+```{r}
+news_df$published_day <- NA
+news_df$published_day [news_df$weekday_is_monday==1] <- "Monday"
+news_df$published_day [news_df$weekday_is_tuesday==1] <- "Tuesday"
+news_df$published_day [news_df$weekday_is_wednesday==1] <- "Wednesday"
+news_df$published_day [news_df$weekday_is_thursday==1] <- "Thursday"
+news_df$published_day [news_df$weekday_is_friday==1] <- "Friday"
+news_df$published_day [news_df$weekday_is_saturday==1] <- "Saturday"
+news_df$published_day [news_df$weekday_is_sunday==1] <- "Sunday"
+```
+
+```{r}
+news_df$published_day <- factor(news_df$published_day, 
+                                       levels = c( "Monday", 
+                                                   "Tuesday", 
+                                                   "Wednesday", 
+                                                   "Thursday",
+                                                   "Friday", 
+                                                   "Saturday", 
+                                                   "Sunday"))
+```
+
+```{r}
+library(lubridate)
+news_df$published_date <- ymd(substr(news_df$url, 21, 30))
+news_df$published_month<-as.factor(month(news_df$published_date))
+news_df$published_year <- as.factor(substr(news_df$url, 21, 24))
+```
+
+```{r}
+removevars <- c("url",
+                "data_channel_is_lifestyle",
+                "data_channel_is_entertainment",
+                "data_channel_is_bus",
+                "data_channel_is_socmed",
+                "data_channel_is_tech",  
+                "data_channel_is_world",
+                "weekday_is_monday",     
+                "weekday_is_tuesday",    
+                "weekday_is_wednesday",  
+                "weekday_is_thursday",   
+                "weekday_is_friday",     
+                "weekday_is_saturday",   
+                "weekday_is_sunday",
+                "timedelta")
+
+news_df <- news_df[, !(colnames(news_df) %in% removevars)]
+news_df <- news_df[complete.cases(news_df), ]
+str(news_df)
+```
+
+density of news share
+
+```{r warning=FALSE}
+shares_boundry<-c(mean(news_df$shares))
+news_df %>% ggplot(mapping =aes(x=shares)) +
+            geom_density(fill='lightblue') +
+            xlim(c(0,10000))+
+            geom_vline(xintercept = shares_boundry, col='orange') +
+            ggtitle('news share popularity with share between 0 and 10000')
+            
+```
+
+```{r}
+news_df %>% ggplot(mapping =aes(x=shares)) +
+            geom_density(fill='lightblue') +
+            geom_vline(xintercept = shares_boundry, col='orange') +
+            ggtitle('news share popularity')
+```
+
+If day matters
+```{r}
+news_df %>% ggplot(aes(x=published_day, y=shares)) + 
+          geom_bar(stat='summary', fun.y='median', fill='steelblue') +
+          scale_y_continuous(breaks=seq(0,15000,by=500)) +
+          geom_label(stat='count', aes(label= ..count.., y= ..count..),size=3)
+
+```
+
+If month matters
+```{r}
+news_df %>% ggplot(aes(x=published_month, y=shares)) + 
+          geom_bar(stat='summary', fun.y='median', fill='steelblue') +
+          scale_y_continuous(breaks=seq(0,15000,by=500)) +
+          geom_label(stat='count', aes(label= ..count.., y= ..count..),size=3)
+```
+
+if weekday matters
+```{r}
+news_df <- news_df %>% mutate(is_weekend=as.factor(is_weekend))
+news_df %>% ggplot(aes(x=is_weekend,y=shares,fill=is_weekend))+
+            geom_bar(stat='identity',position =position_stack(reverse = TRUE))+
+            coord_flip() +
+            theme(legend.position = "top")
+```
+
+if channels matter
+```{r}
+news_df %>% ggplot(aes(x=news_channel, y=shares)) + 
+          geom_bar(stat='summary', fun.y='median', fill='steelblue') +
+          scale_y_continuous(breaks=seq(0,15000,by=500)) +
+          geom_label(stat='count', aes(label= ..count.., y= ..count..),size=3)
+```
+
+All weekday?
+```{r}
+news_df %>% ggplot(mapping=aes(x=published_month,y=published_day))+
+            geom_point()+
+            facet_wrap(~published_year)
+```
+
+```{r}
+news_df %>%
+    ggplot(mapping = aes(x = num_imgs, y = shares, group = published_day, col = published_day)) +
+    geom_line(alpha = 0.5) +
+    facet_grid(published_year ~ published_month)
+```
+
+```{r}
+news_df %>%
+    ggplot(mapping = aes(x = num_videos, y = shares, group = published_day, col = published_day)) +
+    geom_line(alpha = 0.5) +
+    facet_grid(published_year ~ published_month)
+```
+
+
+```{r}
+news_df %>% ggplot(aes(x=num_videos,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')
+```
+
+As can be seen there is no direct relationship between num_video and shares
+
+```{r}
+news_df %>% ggplot(aes(x=num_imgs,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')
+```
+
+Also there is no obvious linear relationship between number of images and number of shares. More images dose not mean that there would be more shares.
+
+variables related to words
+
+number of words in the title
+```{r}
+ggplot(data=news_df, aes(x=factor(n_tokens_title), y=shares))+
+        geom_boxplot() + 
+        labs(x='number of words in the title')
+            
+```
+
+It seems like a not to long and not to short title will be more attractive. And there are some extreme values when number of token is equal to 9, 11, 13.
+
+```{r}
+news_df %>% ggplot(aes(x=n_tokens_title,y=shares,fill=n_tokens_title))+
+            geom_bar(stat='summary',fun.y='median')+
+            geom_label(stat='count', aes(label= ..count.., y= ..count..),size=3)
+            
+```
+
+It seems like the number of words of title does not affect the popularity of articles.However most authors choose a concise title with length from 8-12. Also it proves that a successful article has a successful title. So if a author has a good content, I suggest him/her write a tile with words number from 8-12.
+
+number of words in the article
+
+```{r}
+news_df %>% ggplot(mapping =aes(x=n_tokens_content)) +
+            geom_density(fill='lightblue') 
+            ggtitle('number of words in the article')
+```
+
+```{r}
+news_df %>% ggplot(aes(x=n_tokens_content,y=shares))+
+            #geom_line(color='firebrick')+
+            #geom_point(color='firebrick')+
+            geom_smooth(col = "black")
+```
+
+As can be seen that there is not obvious relationship between number of words in the article and popularity. Also most articles have 0-2000 words.
+
+```{r}
+news_df %>% ggplot(mapping =aes(x=average_token_length)) +
+            geom_density(fill='lightblue') 
+            ggtitle('average word length')
+```
+
+```{r}
+news_df %>% ggplot(aes(x=average_token_length,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')+
+            geom_smooth(col = "black")
+```
+
+It can be concluded that most words have a length of 4-6 letters. Although I draw a plot to investigate the relationship between popularity and average token length I do not think it is reasonable to do that. In my opinion there should be no relationship between popularity and average token length. 
+
+n_unique_tokens:
+```{r}
+news_df %>% ggplot(mapping =aes(x=n_unique_tokens)) +
+            geom_density(fill='lightblue') 
+            ggtitle('rate of unique words')
+```
+
+```{r}
+news_df %>% filter(n_unique_tokens<1) %>%
+            ggplot(mapping =aes(x=n_unique_tokens, y=..density..)) +
+            geom_density(fill='lightblue')+
+            ggtitle('rate of unique words')
+```
+
+
+```{r}
+news_df %>% filter(n_unique_tokens<2) %>% 
+            ggplot(mapping=aes(x=n_unique_tokens,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')+
+            geom_smooth(col = "black")
+            
+```
+
+```{r}
+news_df %>% filter(n_unique_tokens<2) %>% 
+            ggplot(mapping=aes(x=n_unique_tokens,y=shares))+
+            #geom_line(color='firebrick')+
+            #geom_point(color='firebrick')+
+            geom_smooth(col = "black")
+```
+
+```{r}
+max(news_df$n_unique_tokens)
+sum(news_df$n_unique_tokens>1)
+news_df %>% filter(n_unique_tokens>1)
+```
+
+Obviously, there are extrem values of number of shares. There is no sign indicates that there is evident relationship between rate of unique words and popularity. There is one weird thing: n_uniue_tokens means the rate of unique words, but the maximum value of it is 701, which makes no sense. So that is one point that needs more work. It seems that most common rate of unique words is between 0.375 and 0.625.
+
+n_non_stop_words:
+```{r}
+news_df %>% ggplot(mapping =aes(x=n_non_stop_words)) +
+            geom_density(fill='lightblue') 
+            ggtitle('rate of non-stop words')
+```
+```{r}
+max(news_df$n_non_stop_words)
+sum(news_df$n_non_stop_words>1)
+news_df %>% filter(n_non_stop_words>1)
+```
+
+```{r}
+news_df %>% filter(n_non_stop_words<=1) %>% 
+            ggplot(mapping=aes(x=n_non_stop_words,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')
+```
+
+```{r}
+news_df %>% filter(n_non_stop_words<2) %>% 
+            ggplot(mapping=aes(x=n_non_stop_words,y=shares))+
+            #geom_line(color='firebrick')+
+            #geom_point(color='firebrick')+
+            geom_smooth(col = "pink")
+```
+
+```{r}
+news_df %>% filter(n_non_stop_words<=1) %>%
+            ggplot(mapping =aes(x=n_non_stop_words, y=..density..)) +
+            geom_density(fill='lightblue')+
+            ggtitle('rate of non-stop words')
+```
+
+```{r}
+count(news_df$n_non_stop_words != 1 & news_df$n_non_stop_words !=0)
+count(news_df$n_non_stop_words == 1 )
+count(news_df$n_non_stop_words == 0 )
+count(news_df$n_non_stop_words<1 &news_df$n_non_stop_words>=0.99)
+```
+
+Again, there is an outlier which is exactly the same outlier of n_non_stop_words. I delete this record. 
+There is no sign indicates that there is evident relationship between rate of non-stop words and popularity. Rate of non-stop words of most articles are very close to 1 and only a few is 0.
+
+unique non-stop words
+```{r}
+news_df %>% ggplot(mapping =aes(x=n_non_stop_unique_tokens)) +
+            geom_density(fill='lightblue') 
+            ggtitle('rate of non-stop words')
+```
+
+```{r}
+max(news_df$n_non_stop_unique_tokens)
+count(news_df$n_non_stop_unique_tokens>1)
+news_df %>% filter(n_non_stop_unique_tokens>1)
+```
+
+Again there is the same exterme value.
+```{r}
+news_df %>% filter(n_non_stop_unique_tokens<=1) %>% 
+            ggplot(mapping=aes(x=n_non_stop_unique_tokens,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')
+```
+```{r}
+news_df %>% filter(n_non_stop_unique_tokens<=1) %>% 
+            ggplot(mapping=aes(x=n_non_stop_unique_tokens,y=shares))+
+            geom_smooth(color='pink')
+```
+
+```{r}
+news_df %>% filter(n_non_stop_unique_tokens<=1) %>%
+            ggplot(mapping =aes(x=n_non_stop_unique_tokens, y=..density..)) +
+            geom_density(fill='lightblue')+
+            ggtitle('rate of non-stop unique words')
+```
+
+Rate of unique non-stop words of most articles is between 0.5 and 1. Moreover articles with rate of unique non-stop words around 0.75 tend to be more popular.
+
+```{r}
+news_df %>% subset(n_unique_tokens<=1&n_non_stop_unique_tokens<=1, select=c('n_unique_tokens', 'n_non_stop_unique_tokens')) %>%
+            ggplot(aes(x=n_non_stop_unique_tokens,y=n_unique_tokens))+
+            geom_point()
+```
+
+As expected, the rate of unique non-stop words and rate of unique words are highly correalted. And there rate of non-stop words and rate of non-stop words are not correalted at all.
+
+Links
+number of links
+```{r}
+news_df %>% ggplot(mapping =aes(x=num_hrefs, y=..density..)) +
+            geom_density(fill='lightblue') 
+            ggtitle('number of links')
+```
+
+Number of links of most articles is between 0 and 50, which is reasonable. Then I look at the relationship between number of links and popularity.
+
+
+```{r}
+news_df %>% ggplot(aes(x=num_hrefs,y=shares))+
+            geom_line(color='firebrick')+
+            geom_point(color='firebrick')
+```
+
+It can be concluded that an article with more links do not tend to be more popular. Conversely, an article with 0-50 links is more likely to be popular.
+```{r}
+news_df %>% ggplot(aes(x=num_hrefs,y=shares))+
+            geom_smooth(color='pink')
+```
+
+average number of Mashable links
+```{r}
+#cols<-c('firebrick', 'yellow', 'green')
+news_df %>% ggplot(aes(x=self_reference_max_shares,y=shares))+
+            geom_point(color='firebrick')+
+            geom_point(aes(x=self_reference_avg_sharess,y=shares),color='green')+
+            geom_point(aes(x=self_reference_min_shares,y=shares),color='yellow')+
+            geom_line(aes(x=self_reference_max_shares,y=shares,color='max'),stat = 'summary',fun.y='mean',show.legend=TRUE,linetype = "dashed")+
+            geom_line(aes(x=self_reference_avg_sharess,y=shares,color='avg'),stat = 'summary',fun.y='mean',show.legend=TRUE)+
+            geom_line(aes(x=self_reference_min_shares,y=shares,color='min'),stat = 'summary',fun.y='mean',show.legend=TRUE,linetype="dotdash")+
+            scale_color_discrete('legend')+
+            xlab('')+
+            ggtitle('minimum average and maximum number of shares of Mashable links')
+```
+
+As can be seen the relationships between shares and minimum, average and maximum number of shares of Mashable links are similar. And I discover that the relationships are similar. An article with more referenced articles in Mashable is not definitely more popular.
+
+key words
+```{r}
+news_df %>% ggplot(mapping =aes(x=num_keywords)) +
+            geom_density(fill='lightblue') +
+            ggtitle('key words density')
+```
+
+It shows that most articles have 4-10 key words.
+
+Best Keyword
+```{r}
+news_df %>% ggplot(aes(x=kw_min_max,y=shares))+
+            geom_point(color='blue')+
+            geom_point(aes(x=kw_max_max,y=shares),color='green')+
+            geom_point(aes(x=kw_avg_max,y=shares),color='red')+
+            geom_line(aes(x=kw_avg_max,y=shares,color='avg'),
+                      stat = 'summary',fun.y='mean',show.legend=TRUE)+
+            geom_line(aes(x=kw_max_max,y=shares,color='max'),
+                      stat = 'summary',fun.y='mean',show.legend=TRUE,linetype = "dashed")+
+            geom_line(aes(x=kw_min_max,y=shares,color='min'),
+                      stat = 'summary',fun.y='mean',show.legend=TRUE,linetype="dotdash")+
+            scale_color_discrete('legend')+
+            xlab('number')+
+            ggtitle('minimum average and maximum number of best keyword')
+```
+
+```{r warning=FALSE}
+news_df %>% ggplot(aes(y=shares))+
+            geom_smooth(mapping = aes(x=kw_max_max, y=shares,color='max'),lwd=0.6)+
+            geom_smooth(mapping = aes(x=kw_min_max, y=shares,color='min'),lwd=0.5)+
+             geom_smooth(mapping = aes(x=kw_avg_max, y=shares,color='avg'),lwd=0.4)+
+            scale_color_discrete('legend')+
+            xlab('number')+
+            ggtitle('minimum average and maximum number of best keyword')
+```
+
+The relationship between shares and min, max and avg shares of best keywords are different. It seems that the best keyword of an artical could affect the popularity of it. Since when the max shares is greater, the number of shares tend to be bigger, which accords with common sense, i.e. popular keywords lead to popular articles. However, this trend does not appear in average shares of best keywords. It is further work to investigate reasons behind it.
+
+
+```{r}
+news_df %>% ggplot(aes(y=shares))+
+            geom_point(aes(x=kw_min_avg,y=shares,color='min'),shape=16,show.legend = TRUE)+
+            geom_point(aes(x=kw_max_avg,y=shares,color='max'),shape=17,show.legend = TRUE)+
+            geom_point(aes(x=kw_avg_avg,y=shares,color='avg'),shape=18,show.legend = TRUE)+
+            xlab('number')+
+            scale_color_discrete('legend')+
+            ggtitle('minimum, average and maximum number of average keyword')
+```
+```{r warning=FALSE}
+news_df %>% ggplot(aes(y=shares))+
+            geom_smooth(mapping = aes(x=kw_max_avg, y=shares,color='max'),lwd=0.6)+
+            geom_smooth(mapping = aes(x=kw_min_avg, y=shares,color='min'),lwd=0.5)+
+             geom_smooth(mapping = aes(x=kw_avg_avg, y=shares,color='avg'),lwd=0.4)+
+            scale_color_discrete('legend')+
+            xlab('number')+
+            ggtitle('minimum average and maximum number of average keyword')
+```
+
+Conversely, 
+Natural language Processing
+
+```{r}
+news_df %>% ggplot(aes(y=shares))+
+            #geom_point(aes(x=LDA_00, y=shares),shape=16,color='pink',show.legend = TRUE)+
+            geom_smooth(mapping = aes(x=LDA_00, y=shares,color='00'),lwd=0.6)+
+            #geom_point(aes(x=LDA_01, y=shares),shape=17,color='yellow',show.legend = TRUE)+
+            geom_smooth(mapping = aes(x=LDA_01, y=shares,color='01'),lwd=0.5)+
+            #geom_point(aes(x=LDA_02, y=shares),shape=18,color='blue',show.legend = TRUE)+
+            geom_smooth(mapping = aes(x=LDA_02, y=shares,color='02'),lwd=0.4)+
+            #geom_point(aes(x=LDA_03, y=shares),shape=19,color='green',show.legend = TRUE)+
+            geom_smooth(mapping = aes(x=LDA_03, y=shares,color='03'),lwd=0.3)+
+            #geom_point(aes(x=LDA_04, y=shares),shape=20,color='orange',show.legend = TRUE)+
+            geom_smooth(mapping = aes(x=LDA_04, y=shares,color='04'),lwd=0.2)+
+            xlab('number')+
+            scale_color_discrete('legend')+
+            ggtitle('closeness to top 5 LDA topics')
+            
+```
+
+It can be concluded that an article which is more close to topic 3 is more likely popular. On the contrary, an article which is more close to topic 3 is less likely popular.
+
+Title subjectivity
+
+```{r}
+news_df %>% ggplot(aes(x=abs_title_subjectivity,y=..density..))+
+            geom_density(fill='grey50')+
+            geom_density(aes(x=global_subjectivity,y=..density..))+
+            ggtitle('subjectivity density')
+```
+
+```{r}
+news_df %>% ggplot(aes(x=abs_title_subjectivity,y=shares))+
+            #geom_point(shape=16,color='orange')+
+            geom_smooth(lwd = 0.5, col = "red", fill = "pink")+
+            ggtitle('title_subjectivity')
+```
+
+Title sentiment polarity
+```{r}
+news_df %>% ggplot(mapping =aes(x=abs_title_sentiment_polarity,y=..density..)) +
+            geom_density(fill='lightblue') +
+            ggtitle('abs title sentiment polarity')
+```
+```{r}
+news_df %>% ggplot(aes(x=abs_title_sentiment_polarity,y=shares))+
+            #geom_point(shape=16,color='orange')+
+            geom_smooth(lwd = 0.5, col = "red", fill = "pink")+
+            ggtitle('abs title sentiment polarity')
+```
+
+An article with a title which is more polar is more likely attract readers' attention. As a result, it will be more popular.
+
+Pos. words rate and Neg. words rate
+```{r}
+news_df %>% ggplot(aes(y=shares))+
+            #geom_point(shape=16,color='orange')+
+            geom_smooth(mapping=aes(x=rate_positive_words,y=shares,
+                                    color='Rate of positive words among non-neutral tokens'),
+                        lwd = 0.5)+
+            geom_smooth(mapping=aes(x=rate_negative_words,y=shares,
+                                    color='Rate of negative words among non-neutral tokens'),
+                        lwd = 0.5)+
+            geom_smooth(mapping=aes(x=global_rate_positive_words,y=shares,
+                                    color='Rate of positive words in the content'),
+                        lwd = 0.5)+
+            geom_smooth(mapping=aes(x=global_rate_negative_words,y=shares,
+                                    color='Rate of negative words in the content'),
+                        lwd = 0.5)+
+  
+            ggtitle('Pos. words rate and Neg. words rate')
+```
+
